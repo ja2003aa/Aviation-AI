@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { seedBoardFromPayload } from "@/lib/flights";
 import {
   chatWithLiquidApi,
   chatWithLocalAgent,
@@ -10,6 +11,8 @@ type ChatBody = {
   sessionId?: string;
   currentFlightNumber?: string | null;
   currentFlightDate?: string | null;
+  /** Raw KKIA JSON array fetched in the browser (avoids Vercel IP 403). */
+  boardPayload?: unknown;
 };
 
 export const maxDuration = 60;
@@ -24,6 +27,10 @@ export async function POST(req: NextRequest) {
 
     const sessionId = body.sessionId || "web";
     const mode = llmMode();
+
+    if (body.boardPayload != null) {
+      seedBoardFromPayload(body.boardPayload);
+    }
 
     if (mode === "none") {
       return NextResponse.json(

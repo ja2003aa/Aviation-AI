@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { fetchBoardInBrowser } from "@/lib/boardClient";
 
 type ChatMessage = {
   id: string;
@@ -106,6 +107,9 @@ export default function ChatApp() {
     ]);
 
     try {
+      // Fetch live board in the browser — KKIA allows CORS but blocks many Vercel IPs.
+      const boardPayload = await fetchBoardInBrowser();
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -114,6 +118,7 @@ export default function ChatApp() {
           sessionId,
           currentFlightNumber,
           currentFlightDate,
+          boardPayload,
         }),
       });
       const data = await response.json();

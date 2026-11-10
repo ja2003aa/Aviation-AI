@@ -18,12 +18,33 @@ export type FlightLookupResult = {
   source: string;
 };
 
-const FLIGHTS_API = "https://www.kkia.sa/api/flightsInformation";
+const DEFAULT_FLIGHTS_API = "https://www.kkia.sa/api/flightsInformation";
 const PAGE_URL = "https://www.kkia.sa/en/Flights/Departures-and-Arrivals";
+
+/** Direct KKIA URL, or a Cloudflare Worker proxy when Vercel IPs are blocked. */
+function flightsApiUrl(): string {
+  return (process.env.KKIA_FEED_URL || DEFAULT_FLIGHTS_API).trim();
+}
 
 let cachedPayload: unknown[] | null = null;
 let cachedAt = 0;
 const CACHE_MS = 60_000;
+
+/**
+ * Seed the in-memory board from a browser-fetched KKIA payload.
+ * Vercel serverless IPs are often blocked by KKIA; browsers are allowed (CORS *).
+ */
+export function seedBoardFromPayload(payload: unknown): {
+  ok: boolean;
+  count: number;
+} {
+  if (!Array.isArray(payload)) {
+    return { ok: false, count: 0 };
+  }
+  cachedPayload = payload;
+  cachedAt = Date.now();
+  return { ok: true, count: payload.length };
+}
 
 export function normalizeFlightNumber(value: string): string {
   return value.toUpperCase().replace(/[\s\-_]+/g, "");
@@ -134,7 +155,8 @@ export async function fetchBoard(): Promise<{
     // Continue with default cookie — API may still succeed.
   }
 
-  const response = await kkiaRequest(FLIGHTS_API, {
+  const apiUrl = flightsApiUrl();
+  const response = await kkiaRequest(apiUrl, {
     "user-agent": BROWSER_UA,
     accept: "application/json,text/plain,*/*",
     "accept-language": "en-US,en;q=0.9",
