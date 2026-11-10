@@ -1,0 +1,55 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets — never commit real credentials
+.env
+.env.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Type checkers / linters / test caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+
+# Local data and vector store artifacts
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+chroma_db/
+*.bin
+*.pt
+*.onnx
+
+# Logs
+*.log
+logs/
+
+# Next.js / Node
+web/node_modules/
+web/.next/
+web/out/
+web/.env*.local
+npm-debug.log*
