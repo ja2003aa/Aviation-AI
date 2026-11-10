@@ -8,6 +8,8 @@
   --muted: #7c8399;
   --line: #e9e4ee;
   --card: #ffffffe0;
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-body: "DM Sans", system-ui, -apple-system, sans-serif;
 }
 
 * {
