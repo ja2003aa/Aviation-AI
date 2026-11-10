@@ -82,6 +82,25 @@ export function parseFlight(item: Record<string, unknown>): FlightRecord {
   };
 }
 
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+/** undici allows Cookie headers; global fetch strips them and KKIA then 403s from Vercel. */
+async function kkiaRequest(
+  url: string,
+  headers: Record<string, string>
+): Promise<{ statusCode: number; bodyText: string; setCookie: string[] }> {
+  const { request } = await import("undici");
+  const response = await request(url, {
+    method: "GET",
+    headers,
+  });
+  const bodyText = await response.body.text();
+  const raw = response.headers["set-cookie"];
+  const setCookie = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return { statusCode: response.statusCode, bodyText, setCookie };
+}
+
 export async function fetchBoard(): Promise<{
   flights: FlightRecord[];
   retrieved_at_utc: string;
@@ -94,23 +113,41 @@ export async function fetchBoard(): Promise<{
     };
   }
 
-  const response = await fetch(FLIGHTS_API, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; AviationAI/1.0; +https://github.com/ja2003aa/Aviation-AI)",
-      Accept: "application/json,text/plain,*/*",
-      Referer: PAGE_URL,
-      Origin: "https://www.kkia.sa",
-    },
-    // Always hit live board from serverless — do not use Next data cache.
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`KKIA feed unavailable (${response.status})`);
+  // Warm a session cookie first — KKIA often 403s bare datacenter calls.
+  let cookieHeader = "sc_site=KKIA";
+  try {
+    const page = await kkiaRequest(PAGE_URL, {
+      "user-agent": BROWSER_UA,
+      accept: "text/html,application/xhtml+xml",
+      "accept-language": "en-US,en;q=0.9",
+    });
+    const joined = page.setCookie
+      .map((c) => c.split(";")[0])
+      .filter(Boolean)
+      .join("; ");
+    if (joined) {
+      cookieHeader = joined.includes("sc_site=")
+        ? joined
+        : `${joined}; sc_site=KKIA`;
+    }
+  } catch {
+    // Continue with default cookie — API may still succeed.
   }
 
-  const payload = await response.json();
+  const response = await kkiaRequest(FLIGHTS_API, {
+    "user-agent": BROWSER_UA,
+    accept: "application/json,text/plain,*/*",
+    "accept-language": "en-US,en;q=0.9",
+    referer: PAGE_URL,
+    origin: "https://www.kkia.sa",
+    cookie: cookieHeader,
+  });
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(`KKIA feed unavailable (${response.statusCode})`);
+  }
+
+  const payload = JSON.parse(response.bodyText) as unknown;
   if (!Array.isArray(payload)) {
     throw new Error("Unexpected KKIA payload");
   }
