@@ -96,10 +96,14 @@ export async function fetchBoard(): Promise<{
 
   const response = await fetch(FLIGHTS_API, {
     headers: {
-      "User-Agent": "AviationAI-Web/1.0",
-      Accept: "application/json",
+      "User-Agent":
+        "Mozilla/5.0 (compatible; AviationAI/1.0; +https://github.com/ja2003aa/Aviation-AI)",
+      Accept: "application/json,text/plain,*/*",
+      Referer: PAGE_URL,
+      Origin: "https://www.kkia.sa",
     },
-    next: { revalidate: 60 },
+    // Always hit live board from serverless — do not use Next data cache.
+    cache: "no-store",
   });
 
   if (!response.ok) {

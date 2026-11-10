@@ -156,7 +156,15 @@ export async function chatWithLiquidApi(options: {
 
   for (let step = 0; step < 3; step += 1) {
     const assistant = await liquidChatCompletions(messages, apiKey, model);
-    messages.push(assistant);
+    // Some hosts reject "" content with tool_calls — normalize for the next turn.
+    const storedAssistant: ChatMessage = {
+      ...assistant,
+      content:
+        assistant.tool_calls && assistant.tool_calls.length > 0
+          ? assistant.content || null
+          : assistant.content,
+    };
+    messages.push(storedAssistant);
 
     const toolCalls = assistant.tool_calls || [];
     if (toolCalls.length === 0) {
