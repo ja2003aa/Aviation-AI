@@ -12,7 +12,7 @@ type ChatBody = {
   currentFlightDate?: string | null;
 };
 
-export const maxDuration = 180;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,10 +29,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           reply:
-            "No LLM configured. For the Vercel path, set LIQUID_API_KEY in web/.env.local (and USE_LOCAL_AGENT=0). For local LFM2.5, set USE_LOCAL_AGENT=1 and start ./run_agent_api.sh.",
+            "No LLM configured on this deployment. In Vercel → Settings → Environment Variables add LIQUID_API_KEY, LIQUID_MODEL=lfm3-1.7b, USE_LOCAL_AGENT=0 (Production + Preview), then Redeploy.",
           usedTool: false,
           toolResult: null,
           source: "none",
+          mode,
         },
         { status: 503 }
       );
@@ -57,22 +58,24 @@ export async function POST(req: NextRequest) {
           result.currentFlightDate || body.currentFlightDate || null,
         toolResult: result.toolResult,
         source: result.source,
+        mode,
       });
     } catch (agentError) {
       const detail =
         agentError instanceof Error ? agentError.message : "Unknown agent error";
       const hint =
         mode === "liquid-api"
-          ? "Check LIQUID_API_KEY / LIQUID_MODEL in web/.env.local."
-          : "Start the LFM agent: `./run_agent_api.sh`. Or set LIQUID_API_KEY for hosted Liquid tool-calling.";
+          ? "Fix in Vercel → Settings → Environment Variables (LIQUID_API_KEY, LIQUID_MODEL=lfm3-1.7b, USE_LOCAL_AGENT=0), then Redeploy."
+          : "Local agent is offline. Start ./run_agent_api.sh or switch to LIQUID_API_KEY.";
 
       return NextResponse.json(
         {
-          reply: `The LLM agent is not reachable yet. ${hint}`,
+          reply: `The LLM agent failed. ${hint}\n\nDetails: ${detail}`,
           usedTool: false,
           error: detail,
           toolResult: null,
           source: "none",
+          mode,
         },
         { status: 503 }
       );

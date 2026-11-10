@@ -117,17 +117,25 @@ async function liquidChatCompletions(
   return message as ChatMessage;
 }
 
+function assistantText(message: ChatMessage & { reasoning_content?: string }): string {
+  const content = (message.content || "").trim();
+  if (content) return content;
+  return "";
+}
+
 /** Hosted Liquid AI API with OpenAI-style tool calling (works on Vercel). */
 export async function chatWithLiquidApi(options: {
   message: string;
   currentFlightNumber?: string | null;
   currentFlightDate?: string | null;
 }): Promise<LlmChatResult> {
-  const apiKey = process.env.LIQUID_API_KEY;
+  const apiKey = (process.env.LIQUID_API_KEY || "").trim();
   if (!apiKey) {
-    throw new Error("LIQUID_API_KEY is not set.");
+    throw new Error(
+      "LIQUID_API_KEY is missing. In Vercel: Settings → Environment Variables → add LIQUID_API_KEY, then Redeploy."
+    );
   }
-  const model = process.env.LIQUID_MODEL || "lfm3-1.7b";
+  const model = (process.env.LIQUID_MODEL || "lfm3-1.7b").trim();
 
   let contextHint = "";
   if (options.currentFlightNumber) {
@@ -153,7 +161,7 @@ export async function chatWithLiquidApi(options: {
     const toolCalls = assistant.tool_calls || [];
     if (toolCalls.length === 0) {
       return {
-        reply: (assistant.content || "").trim() || "I could not complete that request.",
+        reply: assistantText(assistant) || "I could not complete that request.",
         usedTool,
         currentFlightNumber,
         currentFlightDate,
@@ -195,18 +203,32 @@ export async function chatWithLiquidApi(options: {
         continue;
       }
 
-      lastLookup = await getFlightInfo(flightNumber, flightDate);
-      currentFlightNumber = flightNumber;
-      currentFlightDate =
-        flightDate ||
-        (lastLookup.flights[0]?.scheduled_time || "").slice(0, 10) ||
-        currentFlightDate;
+      try {
+        lastLookup = await getFlightInfo(flightNumber, flightDate);
+        currentFlightNumber = flightNumber;
+        currentFlightDate =
+          flightDate ||
+          (lastLookup.flights[0]?.scheduled_time || "").slice(0, 10) ||
+          currentFlightDate;
 
-      messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        content: JSON.stringify(enrichForLlm(lastLookup)),
-      });
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(enrichForLlm(lastLookup)),
+        });
+      } catch (toolError) {
+        const detail =
+          toolError instanceof Error ? toolError.message : "Flight lookup failed";
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify({
+            found: false,
+            message: `Live airport feed error: ${detail}`,
+            flights: [],
+          }),
+        });
+      }
     }
   }
 
